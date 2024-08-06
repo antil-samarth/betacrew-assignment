@@ -5,7 +5,9 @@ const HOST = 'localhost';
 const PORT = 3000;
 
 const client = new net.Socket();
-let responseReceived = false;
+let ifResponseReceived = false;
+
+const receivedPackets = [];
 
 client.connect(PORT, HOST, () => {
     console.log('Connected to server');
@@ -21,16 +23,17 @@ function sendRequest() {
 
 client.on('data', (data) => {
     console.log('Received response!');
-    console.log('Data : ', data);
-    console.log('Data length : ', data.length);
-    parseData(data);
-    responseReceived = true;
+    //console.log('Data : ', data);
+    //console.log('Data length : ', data.length);
+    const packets = parseData(data);
+    receivedPackets.push(...packets);
+    ifResponseReceived = true;
 });
 
 function parseData(data) {
-    numPackets = data.length / 17;
-
-    let packets = [];
+    const numPackets = data.length / 17;
+    console.log('Number of packets:', numPackets);
+    const packets = [];
 
     for (let i = 0; i < numPackets; i++) {
         const packet = {
@@ -39,23 +42,28 @@ function parseData(data) {
             quantity: data.readInt32BE(i * 17 + 5),
             price: data.readInt32BE(i * 17 + 9),
             packetSequence: data.readInt32BE(i * 17 + 13),
-        }
-        console.log(packet);
-
+        };
         packets.push(packet);
     }
+    return packets;
+}
 
-    fs.writeFileSync('response.json', JSON.stringify(packets, null, 2));
-    console.log('Saved response to response.json');
+function saveToFile(data) {
+    try {
+        fs.writeFileSync('response.json', JSON.stringify(data, null, 2));
+        console.log('Saved response to response.json');
+    } catch (err) {
+        console.error('Error saving response to file:', err);
+    }
 }
 
 client.on('close', () => {
     console.log('Connection closed');
-    if (!responseReceived) {
+    if (!ifResponseReceived) {
         console.log('No response');
-    }
-    else{
+    } else {
         console.log('Response success!!!');
+        saveToFile(receivedPackets);
     }
 });
 
@@ -64,8 +72,8 @@ client.on('error', (err) => {
 });
 
 setTimeout(() => {
-    if (!responseReceived) {
-        console.log('tiemout');
+    if (!ifResponseReceived) {
+        console.log('Timeout: No response received within the expected time frame.');
         client.destroy();
     }
 }, 5000);
