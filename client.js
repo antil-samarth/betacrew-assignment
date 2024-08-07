@@ -8,6 +8,7 @@ const client = new net.Socket();
 let ifResponseReceived = false;
 
 const receivedPackets = [];
+const receivedSequence = [];
 
 client.connect(PORT, HOST, () => {
     console.log('Connected to server');
@@ -26,7 +27,10 @@ client.on('data', (data) => {
     //console.log('Data : ', data);
     //console.log('Data length : ', data.length);
     const packets = parseData(data);
-    receivedPackets.push(...packets);
+    packets.forEach((packet) => {
+        receivedPackets.push(packet);
+        receivedSequence.push(packet.packetSequence);
+    })
     ifResponseReceived = true;
 });
 
@@ -48,13 +52,36 @@ function parseData(data) {
     return packets;
 }
 
-function saveToFile(data) {
+function saveToFile(packets) {
+    packets.sort((a, b) => a.packetSequence - b.packetSequence);
     try {
-        fs.writeFileSync('response.json', JSON.stringify(data, null, 2));
+        fs.writeFileSync('response.json', JSON.stringify(packets, null, 2));
         console.log('Saved response to response.json');
     } catch (err) {
         console.error('Error saving response to file:', err);
     }
+}
+
+function missingSequenceFind() {
+    const expectedSequence = Array.from({ length: receivedSequence[receivedSequence.length - 1] + 1 }, (_, i) => i);
+    let a = expectedSequence.filter(num => !receivedSequence.includes(num));
+    a.shift();
+    return a;
+}
+
+function getMissingPackets(missingSequence) {
+    client.connect(PORT, HOST, () => {
+        console.log('Reconnected to server');
+        missingSequence.forEach(num => {
+            const buffer = Buffer.alloc(2);
+            buffer.writeUInt8(2, 0);
+            buffer.writeUInt8(num, 1);
+            console.log(`Requesting packet sequence number ${num}`);
+            client.write(buffer);
+        })
+        client.end();
+    });
+
 }
 
 client.on('close', () => {
@@ -63,17 +90,23 @@ client.on('close', () => {
         console.log('No response');
     } else {
         console.log('Response success!!!');
+        missingSequence = missingSequenceFind();
+        if (missingSequence.length > 0) {
+            console.log('Missing sequence:', missingSequence);
+            getMissingPackets(missingSequence);
+        }
         saveToFile(receivedPackets);
     }
 });
 
 client.on('error', (err) => {
     console.error('Connection error:', err);
+    return
 });
 
 setTimeout(() => {
     if (!ifResponseReceived) {
-        console.log('Timeout: No response received within the expected time frame.');
+        console.log('tiemout');
         client.destroy();
     }
-}, 5000);
+}, 10000);
