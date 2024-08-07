@@ -40,6 +40,10 @@ client.on('data', (data) => {
 
 // Function to parse received data to packets
 function parseData(data) {
+    if (data.length % 17 !== 0) {
+        console.error('Invalid data received');
+        return;
+    }
     const numPackets = data.length / 17; // 17 bytes per packet as defined in Response Payload Format (4 + 1 + 4 + 4 + 4)
     console.log('Number of packets:', numPackets);
     const packets = [];
