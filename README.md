@@ -8,7 +8,7 @@ In this project, the client connects to a server and requests all packets. The s
 
 1. **Clone the Repository:**
    ```bash
-   git clone 
+   git clone https://github.com/antil-samarth/betacrew-assignment.git
    ```
 
 2. **Navigate to the Project Directory:**
